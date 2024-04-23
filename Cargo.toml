@@ -6,3 +6,15 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+
+
+# On Windows
+# ```
+# cargo install -f cargo-binutils
+# rustup component add llvm-tools-preview
+# ```
+[target.x86_64-windows-msvc]
+rustflags = ["-C", "link-arg=-fuse-ld=lld"]
+
+[target.x86_64-windows-gnu]
+rustflags = ["-C", "link-arg=-fuse-ld=lld"]

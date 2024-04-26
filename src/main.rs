@@ -1,6 +1,6 @@
 use std::net::TcpListener;
 
-use zero2prod::run;
+use zero2prod::startup;
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
@@ -8,5 +8,5 @@ async fn main() -> std::io::Result<()> {
         .expect("failed to bind random port");
     let port = listener.local_addr().unwrap().port();
     println!("port: {}", port);
-    run(listener)?.await
+    startup::run(listener)?.await
 }

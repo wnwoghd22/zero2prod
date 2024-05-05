@@ -45,22 +45,7 @@ pub async fn subscribe(
         return HttpResponse::InternalServerError().finish();
     }
 
-    let configuration_link = "https://my-api.com/subscriptions/confirm";
-
-    if email_client
-        .send_email(
-            new_subscriber.email,
-            "Welcome!",
-            &format!(
-                "Welcome to our newsletter!<br/>\
-                Click <a ref=\"{}\"> here</a> to confirm your subscription.",
-                configuration_link
-            ),
-            &format!(
-                "Welcome to our newsletter! Visit {} to confirm your subscription.",
-                configuration_link
-            ),
-        )
+    if send_confirmation_email(&email_client, new_subscriber)
         .await
         .is_err()
     {
@@ -102,4 +87,28 @@ pub fn is_valid_name(s: &str) -> bool {
     let forbidden_characters = ['/', '(', ')', '"', '<', '>', '\\', '{', '}'];
     let contains_forbidden_characters = s.chars().any(|g| forbidden_characters.contains(&g));
     !(is_empty_or_whitespace || is_too_long || contains_forbidden_characters)
+}
+
+#[tracing::instrument(
+    name = "Send a confirmation email to a new subscriber",
+    skip(email_client, new_subscriber)
+)]
+pub async fn send_confirmation_email(
+    email_client: &EmailClient,
+    new_subscriber: NewSubscriber,
+) -> Result<(), reqwest::Error> {
+    let configuration_link = "https://my-api.com/subscriptions/confirm";
+    let plain_body = format!(
+        "Welcome to our newsletter! Visit {} to confirm your subscription.",
+        configuration_link
+    );
+    let html_body = format!(
+        "Welcome to our newsletter!<br/>\
+        Click <a ref=\"{}\"> here</a> to confirm your subscription.",
+        configuration_link
+    );
+
+    email_client
+        .send_email(new_subscriber.email, "Welcome!", &html_body, &plain_body)
+        .await
 }

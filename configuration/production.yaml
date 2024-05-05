@@ -1,6 +1,7 @@
 # configuration/production.yaml
 application:
   host: 0.0.0.0
+  base_url: "http://127.0.0.1:8000"
 database:
   host: "postgres"
   # require_ssl: true

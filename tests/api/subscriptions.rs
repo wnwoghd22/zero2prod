@@ -138,9 +138,9 @@ async fn subscribe_failes_if_there_is_fatal_database_error() {
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
 
     sqlx::query!("ALTER TABLE subscription_tokens DROP COLUMN subscription_token;",)
-    .execute(&app.db_pool)
-    .await
-    .unwrap();
+        .execute(&app.db_pool)
+        .await
+        .unwrap();
 
     // Act
     let response = app.post_subscriptions(body.into()).await;

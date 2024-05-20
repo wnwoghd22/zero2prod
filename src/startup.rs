@@ -113,10 +113,7 @@ pub async fn run(
             .service(
                 web::scope("/admin")
                     .wrap(from_fn(reject_anonymous_users))
-                    .route("/dashboard", web::get().to(admin_dashboard))
-                    .route("/password", web::get().to(change_password_form))
-                    .route("/password", web::post().to(change_password))
-                    .route("/logout", web::post().to(log_out)),
+                    .configure(config_admin_scope),
             )
             .app_data(db_pool.clone())
             .app_data(email_client.clone())

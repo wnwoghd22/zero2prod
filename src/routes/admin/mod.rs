@@ -14,5 +14,6 @@ pub fn config_admin_scope(cfg: &mut web::ServiceConfig) {
         .route("/password", web::get().to(change_password_form))
         .route("/password", web::post().to(change_password))
         .route("/logout", web::post().to(log_out))
-        .route("/newsletters", web::get().to(newsletters_form));
+        .route("/newsletters", web::get().to(newsletters_form))
+        .route("/newsletters", web::post().to(publish_newsletter));
 }

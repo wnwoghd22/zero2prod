@@ -4,9 +4,12 @@ use sqlx::{PgPool, Postgres, Transaction};
 use tracing::{field::display, Span};
 use uuid::Uuid;
 
-use crate::{configuration::Settings, domain::SubscriberEmail, email_client::{self, EmailClient}, startup::get_connection_pool};
+use crate::{
+    configuration::Settings, domain::SubscriberEmail, email_client::EmailClient,
+    startup::get_connection_pool,
+};
 
-enum ExecutionOutcome {
+pub enum ExecutionOutcome {
     TaskCompleted,
     EmptyQueue,
 }
@@ -19,7 +22,7 @@ enum ExecutionOutcome {
     ),
     err
 )]
-async fn try_execute_task(
+pub async fn try_execute_task(
     pool: &PgPool,
     email_client: &EmailClient,
 ) -> Result<ExecutionOutcome, anyhow::Error> {
@@ -29,33 +32,39 @@ async fn try_execute_task(
     }
     let (transaction, issue_id, email) = task.unwrap();
 
-        Span::current()
-            .record("newsletter_issue_id", &display(issue_id))
-            .record("subscriber_email", &display(&email));
+    Span::current()
+        .record("newsletter_issue_id", &display(issue_id))
+        .record("subscriber_email", &display(&email));
 
-        match SubscriberEmail::parse(email.clone()) {
-            Ok(email) => {
-                let issue = get_issue(pool, issue_id).await?;
-                if let Err(e) = email_client
-                    .send_email(&email, &issue.title, &issue.html_content, &issue.text_content).await {
-                        tracing::error!(
-                            error.cause_chain = ?e,
-                            error.message = %e,
-                            "Failed to deliver issue to a confirmed subscriber. Skipping.",
-                        );
-                    }
-            }
-            Err(e) => {
+    match SubscriberEmail::parse(email.clone()) {
+        Ok(email) => {
+            let issue = get_issue(pool, issue_id).await?;
+            if let Err(e) = email_client
+                .send_email(
+                    &email,
+                    &issue.title,
+                    &issue.html_content,
+                    &issue.text_content,
+                )
+                .await
+            {
                 tracing::error!(
                     error.cause_chain = ?e,
                     error.message = %e,
-                    "Skipping a confirmed subscriber. Their stored contact details are invalid.",
+                    "Failed to deliver issue to a confirmed subscriber. Skipping.",
                 );
             }
         }
+        Err(e) => {
+            tracing::error!(
+                error.cause_chain = ?e,
+                error.message = %e,
+                "Skipping a confirmed subscriber. Their stored contact details are invalid.",
+            );
+        }
+    }
 
-        delete_task(transaction, issue_id, &email).await?;
-    
+    delete_task(transaction, issue_id, &email).await?;
 
     Ok(ExecutionOutcome::TaskCompleted)
 }
@@ -92,7 +101,7 @@ async fn dequeue_task(
 
 #[tracing::instrument(skip_all)]
 async fn delete_task(
-    mut transaction:PgTransaction,
+    mut transaction: PgTransaction,
     issue_id: Uuid,
     email: &str,
 ) -> Result<(), anyhow::Error> {
@@ -119,11 +128,7 @@ struct NewsletterIssue {
 }
 
 #[tracing::instrument(skip_all)]
-async fn get_issue(
-    pool: &PgPool,
-    issue_id: Uuid,
-
-) -> Result<NewsletterIssue, anyhow::Error> {
+async fn get_issue(pool: &PgPool, issue_id: Uuid) -> Result<NewsletterIssue, anyhow::Error> {
     let issue = sqlx::query_as!(
         NewsletterIssue,
         r#"
@@ -139,12 +144,9 @@ async fn get_issue(
     Ok(issue)
 }
 
-async fn worker_loop(
-    pool: &PgPool,
-    email_client: EmailClient,
-) -> Result<(), anyhow::Error> {
+async fn worker_loop(pool: &PgPool, email_client: EmailClient) -> Result<(), anyhow::Error> {
     loop {
-        match try_execute_task(&pool, &email_client).await {
+        match try_execute_task(pool, &email_client).await {
             Ok(ExecutionOutcome::EmptyQueue) => {
                 tokio::time::sleep(Duration::from_secs(1)).await;
             }
@@ -156,21 +158,8 @@ async fn worker_loop(
     }
 }
 
-pub async fn run_worker_until_stopped(
-    configuration: Settings
-) -> Result<(), anyhow::Error> {
+pub async fn run_worker_until_stopped(configuration: Settings) -> Result<(), anyhow::Error> {
     let connection_pool = get_connection_pool(&configuration.database);
-
-    let sender_email = configuration
-        .email_client
-        .sender()
-        .expect("Invalid sender email address.");
-    let timeout = configuration.email_client.timeout();
-    let email_client = EmailClient::new(
-        configuration.email_client.base_url,
-        sender_email,
-        configuration.email_client.authorization_token,
-        timeout,
-    );
+    let email_client = configuration.email_client.client();
     worker_loop(&connection_pool, email_client).await
 }
